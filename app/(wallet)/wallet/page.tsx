@@ -14,7 +14,7 @@ import {
   UnlockKeyhole,
   WalletCards,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RegistrationPanel } from "../registration-panel";
 import { ShieldModal } from "../shield-modal";
 import { formatStroopsAsXlm } from "../stellar-amount";
@@ -57,6 +57,7 @@ function formatBalance(value: string | null) {
 
 export default function WalletDashboardPage() {
   const {
+    address,
     connectWallet,
     isConnected,
     isConnecting,
@@ -69,6 +70,10 @@ export default function WalletDashboardPage() {
     unlockPrivateBalance,
   } = useWalletConnection();
   const [shieldOpen, setShieldOpen] = useState(false);
+
+  useEffect(() => {
+    setShieldOpen(false);
+  }, [address]);
 
   const privateXlm = privateBalances.find(
     (balance) => balance.tokenLabel === "XLM",

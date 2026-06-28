@@ -39,6 +39,7 @@ export default function ActivityPage() {
 
     const controller = new AbortController();
     let active = true;
+    setRecords([]);
     setIsLoading(true);
     setError(null);
 

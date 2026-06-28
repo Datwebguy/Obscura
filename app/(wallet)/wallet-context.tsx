@@ -26,7 +26,8 @@ import { obscuraConfig } from "../config";
 
 const HORIZON_URL = obscuraConfig.horizonUrl;
 const NETWORK_NAME = "Testnet";
-const VERIFIED_PROOF_STORAGE_KEY = "obscura:last-verified-proof";
+const VERIFIED_PROOF_STORAGE_PREFIX = "obscura:last-verified-proof:";
+const UNSCOPED_VERIFIED_PROOF_STORAGE_KEY = "obscura:last-verified-proof";
 const LEGACY_VERIFIED_PROOF_STORAGE_KEY =
   `${["stellar", "shield"].join("-")}:last-verified-proof`;
 
@@ -149,6 +150,10 @@ function getErrorMessage(error: unknown) {
   return "The wallet request could not be completed.";
 }
 
+function verifiedProofStorageKey(address: string) {
+  return `${VERIFIED_PROOF_STORAGE_PREFIX}${address}`;
+}
+
 async function getWalletRuntime() {
   if (!walletRuntimePromise) {
     walletRuntimePromise = Promise.all([
@@ -217,27 +222,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     useState<VerifiedProof | null>(null);
   const addressRef = useRef<string | null>(null);
   const balanceRequestIdRef = useRef(0);
+  const walletSessionIdRef = useRef(0);
 
   useEffect(() => {
-    try {
-      const stored =
-        window.localStorage.getItem(VERIFIED_PROOF_STORAGE_KEY) ??
-        window.localStorage.getItem(LEGACY_VERIFIED_PROOF_STORAGE_KEY);
-      if (stored) {
-        window.localStorage.setItem(VERIFIED_PROOF_STORAGE_KEY, stored);
-      }
-      if (stored) setLastVerifiedProof(JSON.parse(stored) as VerifiedProof);
-    } catch {
-      window.localStorage.removeItem(VERIFIED_PROOF_STORAGE_KEY);
-    }
+    window.localStorage.removeItem(UNSCOPED_VERIFIED_PROOF_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_VERIFIED_PROOF_STORAGE_KEY);
   }, []);
 
-  useEffect(() => {
-    addressRef.current = address;
-  }, [address]);
+  const selectWalletAddress = useCallback((nextAddress: string | null) => {
+    if (addressRef.current !== nextAddress) {
+      walletSessionIdRef.current += 1;
+      balanceRequestIdRef.current += 1;
+      setBalances([]);
+      setBalanceError(null);
+      setIsBalanceLoading(false);
+      setPrivateBalances([]);
+      setPrivateBalanceError(null);
+      setPrivateBalanceStatus(nextAddress ? "checking" : "disconnected");
+      setRegistrationError(null);
+      setRegistrationHash(null);
+      setRegistrationStatus(nextAddress ? "checking" : "disconnected");
+      setLastVerifiedProof(null);
+      setIsRegistering(false);
+    }
+    addressRef.current = nextAddress;
+    setAddress(nextAddress);
+  }, []);
 
   const loadBalances = useCallback(async (publicKey: string) => {
     const requestId = ++balanceRequestIdRef.current;
+    const walletSessionId = walletSessionIdRef.current;
     setIsBalanceLoading(true);
     setBalanceError(null);
 
@@ -267,16 +281,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           return left.assetCode.localeCompare(right.assetCode);
         });
 
-      if (requestId === balanceRequestIdRef.current) {
+      if (
+        requestId === balanceRequestIdRef.current &&
+        addressRef.current === publicKey &&
+        walletSessionIdRef.current === walletSessionId
+      ) {
         setBalances(nextBalances);
       }
     } catch (requestError) {
-      if (requestId === balanceRequestIdRef.current) {
+      if (
+        requestId === balanceRequestIdRef.current &&
+        addressRef.current === publicKey &&
+        walletSessionIdRef.current === walletSessionId
+      ) {
         setBalances([]);
         setBalanceError(getErrorMessage(requestError));
       }
     } finally {
-      if (requestId === balanceRequestIdRef.current) {
+      if (
+        requestId === balanceRequestIdRef.current &&
+        addressRef.current === publicKey &&
+        walletSessionIdRef.current === walletSessionId
+      ) {
         setIsBalanceLoading(false);
       }
     }
@@ -300,38 +326,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           Kit.on(eventTypes.STATE_UPDATED, (event) => {
             if (!active) return;
             const nextAddress = event.payload.address ?? null;
-            addressRef.current = nextAddress;
-            setAddress(nextAddress);
+            selectWalletAddress(nextAddress);
             setError(null);
-            if (nextAddress) {
-              void loadBalances(nextAddress);
-            } else {
-              setBalances([]);
-              setBalanceError(null);
-              setRegistrationStatus("disconnected");
-              setRegistrationError(null);
-              setRegistrationHash(null);
-            }
           }),
           Kit.on(eventTypes.DISCONNECT, () => {
             if (!active) return;
-            addressRef.current = null;
-            balanceRequestIdRef.current += 1;
-            setAddress(null);
-            setBalances([]);
-            setBalanceError(null);
-            setRegistrationStatus("disconnected");
-            setRegistrationError(null);
-            setRegistrationHash(null);
+            selectWalletAddress(null);
           }),
         );
 
         void Kit.getAddress()
           .then(({ address: storedAddress }) => {
             if (!active) return;
-            addressRef.current = storedAddress;
-            setAddress(storedAddress);
-            void loadBalances(storedAddress);
+            selectWalletAddress(storedAddress);
           })
           .catch(() => undefined);
       })
@@ -343,7 +350,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       active = false;
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [loadBalances]);
+  }, [selectWalletAddress]);
 
   const connectWallet = useCallback(async () => {
     setIsConnecting(true);
@@ -357,9 +364,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           : themes.SwkAppLightTheme,
       );
       const result = await Kit.authModal();
-      addressRef.current = result.address;
-      setAddress(result.address);
-      await loadBalances(result.address);
+      selectWalletAddress(result.address);
     } catch (connectionError) {
       const message = getErrorMessage(connectionError);
       if (!message.toLowerCase().includes("closed the modal")) {
@@ -368,24 +373,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [loadBalances]);
+  }, [selectWalletAddress]);
 
   const disconnectWallet = useCallback(async () => {
     try {
       const { Kit } = await getWalletRuntime();
       await Kit.disconnect();
     } finally {
-      addressRef.current = null;
-      balanceRequestIdRef.current += 1;
-      setAddress(null);
-      setBalances([]);
-      setBalanceError(null);
+      selectWalletAddress(null);
       setError(null);
-      setRegistrationStatus("disconnected");
-      setRegistrationError(null);
-      setRegistrationHash(null);
     }
-  }, []);
+  }, [selectWalletAddress]);
 
   const createWalletBridge = useCallback(
     async (requestedAddress?: string): Promise<SppWalletBridge> => {
@@ -438,6 +436,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       unlock = false,
       onStatus?: (status: SppProgress) => void,
     ) => {
+      const walletSessionId = walletSessionIdRef.current;
       if (unlock) setPrivateBalanceStatus("checking");
       setPrivateBalanceError(null);
 
@@ -448,12 +447,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           onProgress: onStatus,
           unlock,
         });
-        if (addressRef.current !== publicKey) return;
+        if (
+          addressRef.current !== publicKey ||
+          walletSessionIdRef.current !== walletSessionId
+        ) return;
 
         setPrivateBalances(result.balances);
         setPrivateBalanceStatus(result.needsUnlock ? "locked" : "ready");
       } catch (portfolioError) {
-        if (addressRef.current !== publicKey) return;
+        if (
+          addressRef.current !== publicKey ||
+          walletSessionIdRef.current !== walletSessionId
+        ) return;
         setPrivateBalanceError(getErrorMessage(portfolioError));
         setPrivateBalanceStatus("error");
       }
@@ -486,6 +491,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const loadRegistration = useCallback(
     async (publicKey: string) => {
+      const walletSessionId = walletSessionIdRef.current;
       setRegistrationStatus("checking");
       setRegistrationError(null);
 
@@ -494,9 +500,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           address: publicKey,
           bridge: await createWalletBridge(publicKey),
         });
-        if (addressRef.current === publicKey) setRegistrationStatus(status);
+        if (
+          addressRef.current === publicKey &&
+          walletSessionIdRef.current === walletSessionId
+        ) setRegistrationStatus(status);
       } catch (registrationRequestError) {
-        if (addressRef.current !== publicKey) return;
+        if (
+          addressRef.current !== publicKey ||
+          walletSessionIdRef.current !== walletSessionId
+        ) return;
         setRegistrationStatus("error");
         setRegistrationError(getErrorMessage(registrationRequestError));
       }
@@ -513,18 +525,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [loadRegistration, registrationStatus]);
 
   useEffect(() => {
+    balanceRequestIdRef.current += 1;
+    setBalances([]);
+    setBalanceError(null);
+    setRegistrationHash(null);
+    setRegistrationError(null);
+    setPrivateBalances([]);
+    setPrivateBalanceError(null);
+    setLastVerifiedProof(null);
+
     if (!address) {
       setRegistrationStatus("disconnected");
-      setPrivateBalances([]);
-      setPrivateBalanceError(null);
       setPrivateBalanceStatus("disconnected");
       return;
     }
+
     addressRef.current = address;
+    try {
+      const stored = window.localStorage.getItem(
+        verifiedProofStorageKey(address),
+      );
+      if (stored) setLastVerifiedProof(JSON.parse(stored) as VerifiedProof);
+    } catch {
+      window.localStorage.removeItem(verifiedProofStorageKey(address));
+    }
+
+    void loadBalances(address);
     setPrivateBalanceStatus("checking");
     void loadRegistration(address);
     void loadPrivateBalances(address);
-  }, [address, loadPrivateBalances, loadRegistration]);
+  }, [address, loadBalances, loadPrivateBalances, loadRegistration]);
 
   useEffect(() => {
     if (!address || privateBalanceStatus !== "ready") return;
@@ -543,34 +573,48 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       setIsRegistering(true);
       setRegistrationError(null);
+      const walletSessionId = walletSessionIdRef.current;
       try {
         const result = await registerSppWallet({
           address: publicKey,
           bridge: await createWalletBridge(publicKey),
           onProgress: onStatus,
         });
-        setRegistrationHash(result.hash);
-        setRegistrationStatus("registered");
+        if (
+          addressRef.current === publicKey &&
+          walletSessionIdRef.current === walletSessionId
+        ) {
+          setRegistrationHash(result.hash);
+          setRegistrationStatus("registered");
+        }
         return result;
       } catch (registrationRequestError) {
         const message = getErrorMessage(registrationRequestError);
-        setRegistrationStatus("unregistered");
-        setRegistrationError(message);
+        if (
+          addressRef.current === publicKey &&
+          walletSessionIdRef.current === walletSessionId
+        ) {
+          setRegistrationStatus("unregistered");
+          setRegistrationError(message);
+        }
         throw registrationRequestError;
       } finally {
-        setIsRegistering(false);
+        if (
+          addressRef.current === publicKey &&
+          walletSessionIdRef.current === walletSessionId
+        ) setIsRegistering(false);
       }
     },
     [createWalletBridge],
   );
 
-  const rememberVerifiedProof = useCallback((hash: string) => {
+  const rememberVerifiedProof = useCallback((address: string, hash: string) => {
     const proof = { hash, verifiedAt: new Date().toISOString() };
-    setLastVerifiedProof(proof);
     window.localStorage.setItem(
-      VERIFIED_PROOF_STORAGE_KEY,
+      verifiedProofStorageKey(address),
       JSON.stringify(proof),
     );
+    if (addressRef.current === address) setLastVerifiedProof(proof);
   }, []);
 
   const submitShieldTransaction = useCallback(
@@ -584,14 +628,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         throw new Error("The official SPP Testnet deployment currently supports XLM and EURC, not USDC.");
       }
 
-      const bridge = await createWalletBridge();
+      const bridge = await createWalletBridge(publicKey);
       const result = await depositToSppPool({
         address: publicKey,
         amount,
         bridge,
         onProgress: onStatus,
       });
-      rememberVerifiedProof(result.hash);
+      rememberVerifiedProof(publicKey, result.hash);
       await loadBalances(publicKey);
       await loadPrivateBalances(publicKey);
       return result;
@@ -619,11 +663,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const result = await privateSendWithSpp({
         address: publicKey,
         amount,
-        bridge: await createWalletBridge(),
+        bridge: await createWalletBridge(publicKey),
         onProgress: onStatus,
         recipient,
       });
-      rememberVerifiedProof(result.hash);
+      rememberVerifiedProof(publicKey, result.hash);
       await loadPrivateBalances(publicKey);
       return result;
     },
@@ -645,11 +689,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const result = await withdrawFromSppPool({
         address: publicKey,
         amount,
-        bridge: await createWalletBridge(),
+        bridge: await createWalletBridge(publicKey),
         onProgress: onStatus,
         recipient,
       });
-      rememberVerifiedProof(result.hash);
+      rememberVerifiedProof(publicKey, result.hash);
       await loadBalances(publicKey);
       await loadPrivateBalances(publicKey);
       return result;

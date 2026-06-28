@@ -11,7 +11,7 @@ import {
   Undo2,
   WalletCards,
 } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { SppProgress } from "./spp-client";
 import { RegistrationPanel } from "./registration-panel";
 import { useWalletConnection } from "./wallet-context";
@@ -69,11 +69,24 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
   const [hash, setHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const operationIdRef = useRef(0);
   const isSend = mode === "send";
   const Icon = isSend ? Send : Undo2;
 
+  useEffect(() => {
+    operationIdRef.current += 1;
+    setAmount("");
+    setRecipient("");
+    setAcceptedRisk(false);
+    setProgress(null);
+    setHash(null);
+    setError(null);
+    setIsWorking(false);
+  }, [address, mode]);
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const operationId = ++operationIdRef.current;
     setError(null);
     setHash(null);
 
@@ -94,8 +107,13 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
       const action = isSend ? submitPrivateSend : submitUnshield;
       const result = await action(
         { amount, recipient: destination },
-        setProgress,
+        (nextProgress) => {
+          if (operationIdRef.current === operationId) {
+            setProgress(nextProgress);
+          }
+        },
       );
+      if (operationIdRef.current !== operationId) return;
       setHash(result.hash);
       setProgress({
         flow: mode,
@@ -103,9 +121,11 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
         message: "Privacy proof verified on Stellar",
       });
     } catch (operationError) {
-      setError(privateOperationError(operationError));
+      if (operationIdRef.current === operationId) {
+        setError(privateOperationError(operationError));
+      }
     } finally {
-      setIsWorking(false);
+      if (operationIdRef.current === operationId) setIsWorking(false);
     }
   };
 

@@ -104,6 +104,7 @@ function stageIndex(stage: string) {
 
 export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
   const {
+    address,
     balances,
     connectWallet,
     isConnected,
@@ -125,6 +126,7 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
   const [maximumDepositStroops, setMaximumDepositStroops] =
     useState<bigint | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const operationIdRef = useRef(0);
 
   const xlm = useMemo(
     () => balances.find((asset) => asset.assetCode === "XLM"),
@@ -143,6 +145,18 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
       return null;
     }
   }, [amount]);
+
+  useEffect(() => {
+    operationIdRef.current += 1;
+    setAmount("");
+    setAcceptedRisk(false);
+    setError(null);
+    setProgress(null);
+    setState("idle");
+    setTransactionHash(null);
+    setMembershipDetails(null);
+    setCopiedCode(false);
+  }, [address]);
 
   useEffect(() => {
     if (!isOpen || !isConnected) {
@@ -207,6 +221,7 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const operationId = ++operationIdRef.current;
     setError(null);
     setMembershipDetails(null);
     setCopiedCode(false);
@@ -257,11 +272,17 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
     try {
       const result = await submitShieldTransaction(
         { amount, assetCode: "XLM" },
-        setProgress,
+        (nextProgress) => {
+          if (operationIdRef.current === operationId) {
+            setProgress(nextProgress);
+          }
+        },
       );
+      if (operationIdRef.current !== operationId) return;
       setTransactionHash(result.hash);
       setState("success");
     } catch (submitError) {
+      if (operationIdRef.current !== operationId) return;
       if (submitError instanceof SppMembershipRequiredError) {
         setMembershipDetails(submitError);
         setState("membership");

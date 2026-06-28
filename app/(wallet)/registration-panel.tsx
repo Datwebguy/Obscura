@@ -10,7 +10,7 @@ import {
   UserRoundCheck,
   WalletCards,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SppProgress } from "./spp-client";
 import { useWalletConnection } from "./wallet-context";
 import { testnetTransactionUrl } from "../config";
@@ -20,7 +20,11 @@ type RegistrationPanelProps = {
   showPoolNote?: boolean;
 };
 
-const REGISTRATION_INTENT_KEY = "obscura:registration-intent";
+const REGISTRATION_INTENT_PREFIX = "obscura:registration-intent:";
+
+function registrationIntentKey(address: string | null) {
+  return `${REGISTRATION_INTENT_PREFIX}${address ?? "disconnected"}`;
+}
 
 const progressLabels: Record<string, string> = {
   confirm: "Confirming your private receiving address",
@@ -43,6 +47,7 @@ export function RegistrationPanel({
   showPoolNote = false,
 }: RegistrationPanelProps) {
   const {
+    address,
     connectWallet,
     isConnected,
     isConnecting,
@@ -54,8 +59,16 @@ export function RegistrationPanel({
   } = useWalletConnection();
   const [progress, setProgress] = useState<SppProgress | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const actionIdRef = useRef(0);
+
+  useEffect(() => {
+    actionIdRef.current += 1;
+    setProgress(null);
+    setActionError(null);
+  }, [address]);
 
   const register = useCallback(async () => {
+    const actionId = ++actionIdRef.current;
     setActionError(null);
     setProgress({
       flow: "register",
@@ -63,35 +76,41 @@ export function RegistrationPanel({
       message: "Preparing your privacy address",
     });
     try {
-      await registerWallet(setProgress);
+      await registerWallet((nextProgress) => {
+        if (actionIdRef.current === actionId) setProgress(nextProgress);
+      });
     } catch (error) {
-      setActionError(friendlyRegistrationError(error));
+      if (actionIdRef.current === actionId) {
+        setActionError(friendlyRegistrationError(error));
+      }
     }
   }, [registerWallet]);
 
   useEffect(() => {
     const shouldResume =
-      window.sessionStorage.getItem(REGISTRATION_INTENT_KEY) === "register";
+      window.sessionStorage.getItem(registrationIntentKey(address)) ===
+      "register";
     if (!shouldResume || !isConnected || isRegistering) return;
 
     if (registrationStatus === "registered") {
-      window.sessionStorage.removeItem(REGISTRATION_INTENT_KEY);
+      window.sessionStorage.removeItem(registrationIntentKey(address));
       return;
     }
 
     if (registrationStatus === "unregistered") {
-      window.sessionStorage.removeItem(REGISTRATION_INTENT_KEY);
+      window.sessionStorage.removeItem(registrationIntentKey(address));
       void register();
       return;
     }
 
     if (registrationStatus === "error") {
-      window.sessionStorage.removeItem(REGISTRATION_INTENT_KEY);
+      window.sessionStorage.removeItem(registrationIntentKey(address));
       setActionError(
         "Private mailbox setup could not start. Please reload the page and try once more.",
       );
     }
   }, [
+    address,
     isConnected,
     isRegistering,
     register,
@@ -100,7 +119,10 @@ export function RegistrationPanel({
 
   const startRegistration = () => {
     if (registrationStatus === "error") {
-      window.sessionStorage.setItem(REGISTRATION_INTENT_KEY, "register");
+      window.sessionStorage.setItem(
+        registrationIntentKey(address),
+        "register",
+      );
       window.location.reload();
       return;
     }
