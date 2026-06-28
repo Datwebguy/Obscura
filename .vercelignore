@@ -1,0 +1,8 @@
+.env
+.env.*
+.git
+.next
+.reference-anon
+.tmp
+.tools
+node_modules
