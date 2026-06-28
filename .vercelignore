@@ -1,8 +1,11 @@
 .env
 .env.*
+.env.local
 .git
-.next
 .reference-anon
 .tmp
 .tools
+*.log
+*.tsbuildinfo
+docs
 node_modules
