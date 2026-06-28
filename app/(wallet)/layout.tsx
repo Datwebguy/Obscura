@@ -50,11 +50,18 @@ function WalletSidebar({
       <button className={`wallet-scrim ${isOpen ? "wallet-scrim-open" : ""}`} onClick={onClose} aria-label="Close menu" />
       <aside className={`wallet-sidebar ${isOpen ? "wallet-sidebar-open" : ""}`}>
         <div className="wallet-sidebar-brand">
-          <ObscuraLogo className="obscura-logo-wallet" />
-          <div>
-            <strong>Obscura</strong>
-            <small>Testnet</small>
-          </div>
+          <Link
+            aria-label="Return to Obscura homepage"
+            className="wallet-sidebar-brand-link"
+            href="/"
+            onClick={onClose}
+          >
+            <ObscuraLogo className="obscura-logo-wallet" />
+            <span>
+              <strong>Obscura</strong>
+              <small>Testnet</small>
+            </span>
+          </Link>
           <button className="sidebar-close" onClick={onClose} aria-label="Close sidebar">
             <X size={18} />
           </button>

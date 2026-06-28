@@ -802,10 +802,27 @@ button {
 .wallet-sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
   min-height: 78px;
   padding: 0 18px;
   border-bottom: 1px solid var(--line);
+}
+
+.wallet-sidebar-brand-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 160ms ease;
+}
+
+.wallet-sidebar-brand-link:hover {
+  opacity: 0.78;
+}
+
+.wallet-sidebar-brand-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 5px;
 }
 
 .wallet-sidebar-brand strong,
