@@ -486,6 +486,8 @@ export type SppPrivatePortfolioResult = {
   needsUnlock: boolean;
 };
 
+type SppPrivacyIdentity = Awaited<ReturnType<typeof ensurePrivacyIdentity>>;
+
 export type SppRegistrationState =
   | "registered"
   | "unregistered"
@@ -564,6 +566,70 @@ export async function getSppPrivatePortfolio(
   };
 }
 
+async function executeWithAutomaticMembership(input: {
+  client: SppWebClient;
+  identity: SppPrivacyIdentity;
+  operation: SppOperationInput;
+  execute: () => Promise<unknown>;
+}) {
+  const initialResult = await input.execute();
+  const initialHash = transactionHashFrom(initialResult);
+  if (initialHash) return initialHash;
+
+  const leafValue = await input.client.deriveAspUserLeaf(
+    parseSerializedFieldToBigInt(
+      input.identity.aspSecret.membershipBlinding,
+    ),
+    input.identity.keys.noteKeypair.public,
+  );
+  const leaf = formatUnknownValue(leafValue);
+  const membershipState = await input.client.aspState().catch(() => null);
+  const policy = membershipState?.aspMembership;
+
+  if (policy?.adminInsertOnly === false) {
+    const enrollmentKey = membershipEnrollmentKey(input.operation.address, leaf);
+    let enrollmentHash = window.localStorage.getItem(enrollmentKey);
+
+    if (!enrollmentHash) {
+      enrollmentHash = await submitPermissionlessMembership({
+        address: input.operation.address,
+        bridge: input.operation.bridge,
+        leaf: parseSerializedFieldToBigInt(leaf),
+        onProgress: input.operation.onProgress,
+      });
+      window.localStorage.setItem(enrollmentKey, enrollmentHash);
+    }
+
+    input.operation.onProgress({
+      flow: "membership",
+      stage: "membership_sync",
+      message: "Pool access confirmed. Finishing your private transaction",
+    });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await wait(attempt === 0 ? 2_000 : 3_000);
+      const retriedResult = await input.execute();
+      const retriedHash = transactionHashFrom(retriedResult);
+      if (retriedHash) {
+        window.localStorage.removeItem(enrollmentKey);
+        return retriedHash;
+      }
+    }
+
+    throw new SppMembershipRequiredError(leaf, {
+      accessMode: "syncing",
+      adminAddress: policy.admin ?? null,
+      enrollmentHash,
+    });
+  }
+
+  throw new SppMembershipRequiredError(leaf, {
+    accessMode:
+      policy?.adminInsertOnly === true ? "admin_required" : "unknown",
+    adminAddress: policy?.admin ?? null,
+  });
+}
+
 export async function depositToSppPool(input: SppOperationInput) {
   const amount = parseXlmToStroops(input.amount);
   const maximumDeposit = await getSppMaximumDepositStroops().catch(() => null);
@@ -578,63 +644,12 @@ export async function depositToSppPool(input: SppOperationInput) {
     input.bridge,
     input.onProgress,
   );
-  const result = await executeSppDeposit(client, input, amount);
-  const hash = transactionHashFrom(result);
-
-  if (!hash) {
-    const leafValue = await client.deriveAspUserLeaf(
-      parseSerializedFieldToBigInt(
-        identity.aspSecret.membershipBlinding,
-      ),
-      identity.keys.noteKeypair.public,
-    );
-    const leaf = formatUnknownValue(leafValue);
-    const membershipState = await client.aspState().catch(() => null);
-    const policy = membershipState?.aspMembership;
-
-    if (policy?.adminInsertOnly === false) {
-      const enrollmentKey = membershipEnrollmentKey(input.address, leaf);
-      let enrollmentHash = window.localStorage.getItem(enrollmentKey);
-
-      if (!enrollmentHash) {
-        enrollmentHash = await submitPermissionlessMembership({
-          address: input.address,
-          bridge: input.bridge,
-          leaf: parseSerializedFieldToBigInt(leaf),
-          onProgress: input.onProgress,
-        });
-        window.localStorage.setItem(enrollmentKey, enrollmentHash);
-      }
-
-      input.onProgress({
-        flow: "membership",
-        stage: "membership_sync",
-        message: "Pool access confirmed. Finishing your private deposit",
-      });
-
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        await wait(attempt === 0 ? 2_000 : 3_000);
-        const retriedResult = await executeSppDeposit(client, input, amount);
-        const retriedHash = transactionHashFrom(retriedResult);
-        if (retriedHash) {
-          window.localStorage.removeItem(enrollmentKey);
-          return { hash: retriedHash, proofVerified: true as const };
-        }
-      }
-
-      throw new SppMembershipRequiredError(leaf, {
-        accessMode: "syncing",
-        adminAddress: policy.admin ?? null,
-        enrollmentHash,
-      });
-    }
-
-    throw new SppMembershipRequiredError(leaf, {
-      accessMode:
-        policy?.adminInsertOnly === true ? "admin_required" : "unknown",
-      adminAddress: policy?.admin ?? null,
-    });
-  }
+  const hash = await executeWithAutomaticMembership({
+    client,
+    identity,
+    operation: input,
+    execute: () => executeSppDeposit(client, input, amount),
+  });
 
   return { hash, proofVerified: true as const };
 }
@@ -645,7 +660,7 @@ export async function privateSendWithSpp(
   const amount = parseXlmToStroops(input.amount);
   const client = await loadSppClient(input.bridge);
   await acceptCurrentDisclaimer(client, input.address, input.onProgress);
-  await ensurePrivacyIdentity(
+  const identity = await ensurePrivacyIdentity(
     client,
     input.address,
     input.bridge,
@@ -653,7 +668,8 @@ export async function privateSendWithSpp(
   );
 
   const recipient = await client.lookupRegisteredPublicKey(input.recipient);
-  if (!recipient?.entry) {
+  const recipientEntry = recipient?.entry;
+  if (!recipientEntry) {
     const syncNote = recipient?.registryFullySynced
       ? ""
       : " Stellar Testnet is still checking recent registrations.";
@@ -662,17 +678,21 @@ export async function privateSendWithSpp(
     );
   }
 
-  const result = await client.executeTransfer(
-    SPP_XLM_POOL_ID,
-    input.address,
-    amount,
-    recipient.entry.noteKey,
-    recipient.entry.encryptionKey,
-    SPP_NETWORK_PASSPHRASE,
-    input.onProgress,
-  );
-  const hash = transactionHashFrom(result);
-  if (!hash) throw new Error("The private payment was not submitted.");
+  const hash = await executeWithAutomaticMembership({
+    client,
+    identity,
+    operation: input,
+    execute: () =>
+      client.executeTransfer(
+        SPP_XLM_POOL_ID,
+        input.address,
+        amount,
+        recipientEntry.noteKey,
+        recipientEntry.encryptionKey,
+        SPP_NETWORK_PASSPHRASE,
+        input.onProgress,
+      ),
+  });
   return { hash, proofVerified: true as const };
 }
 
@@ -682,22 +702,26 @@ export async function withdrawFromSppPool(
   const amount = parseXlmToStroops(input.amount);
   const client = await loadSppClient(input.bridge);
   await acceptCurrentDisclaimer(client, input.address, input.onProgress);
-  await ensurePrivacyIdentity(
+  const identity = await ensurePrivacyIdentity(
     client,
     input.address,
     input.bridge,
     input.onProgress,
   );
 
-  const result = await client.executeWithdraw(
-    SPP_XLM_POOL_ID,
-    input.address,
-    input.recipient,
-    amount,
-    SPP_NETWORK_PASSPHRASE,
-    input.onProgress,
-  );
-  const hash = transactionHashFrom(result);
-  if (!hash) throw new Error("The XLM could not be moved back.");
+  const hash = await executeWithAutomaticMembership({
+    client,
+    identity,
+    operation: input,
+    execute: () =>
+      client.executeWithdraw(
+        SPP_XLM_POOL_ID,
+        input.address,
+        input.recipient,
+        amount,
+        SPP_NETWORK_PASSPHRASE,
+        input.onProgress,
+      ),
+  });
   return { hash, proofVerified: true as const };
 }

@@ -12,8 +12,12 @@ import {
   WalletCards,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { SppProgress } from "./spp-client";
+import { SppMembershipRequiredError, SppProgress } from "./spp-client";
 import { RegistrationPanel } from "./registration-panel";
+import {
+  formatStroopsAsXlm,
+  parseXlmToStroops,
+} from "./stellar-amount";
 import { useWalletConnection } from "./wallet-context";
 import { testnetTransactionUrl } from "../config";
 
@@ -26,6 +30,8 @@ const stageNames: Record<string, string> = {
   derive_keys: "Preparing your private balance",
   fetch_chain_state: "Checking your private balance",
   load_state: "Finding the funds to use",
+  membership_submit: "Activating your access to the private pool",
+  membership_sync: "Confirming your private pool access",
   prepare_tx: "Preparing the payment",
   prove: "Creating a privacy proof in your browser",
   sign_auth: "Waiting for wallet approval",
@@ -36,11 +42,29 @@ const stageNames: Record<string, string> = {
 };
 
 function privateOperationError(error: unknown) {
+  if (error instanceof SppMembershipRequiredError) {
+    if (error.accessMode === "syncing") {
+      return "Your private pool access was added successfully, but Testnet is still synchronizing it. No funds were moved. Wait a few seconds and try again.";
+    }
+    if (error.accessMode === "admin_required") {
+      return "The official SPP Testnet pool currently requires its administrator to approve new spending access. Your private funds are safe.";
+    }
+    return "Obscura could not confirm access to the official SPP pool. Your private funds are safe. Please try again shortly.";
+  }
+
   const message =
     error instanceof Error
       ? error.message
       : "The private payment could not be completed.";
   const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("insufficient") ||
+    normalized.includes("not enough") ||
+    normalized.includes("exceeds your private balance")
+  ) {
+    return "This amount is higher than your available private XLM balance. Enter a smaller amount and try again.";
+  }
 
   if (
     normalized.includes("transaction simulation failed") ||
@@ -59,6 +83,8 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
     connectWallet,
     isConnected,
     isConnecting,
+    privateBalances,
+    privateBalanceStatus,
     submitPrivateSend,
     submitUnshield,
   } = useWalletConnection();
@@ -72,6 +98,10 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
   const operationIdRef = useRef(0);
   const isSend = mode === "send";
   const Icon = isSend ? Send : Undo2;
+  const privateXlm = privateBalances.find(
+    (balance) => balance.tokenLabel === "XLM",
+  );
+  const privateXlmAmount = formatStroopsAsXlm(privateXlm?.amount ?? "0");
 
   useEffect(() => {
     operationIdRef.current += 1;
@@ -92,6 +122,23 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
 
     if (!acceptedRisk) {
       setError("Please confirm the Testnet notice to continue.");
+      return;
+    }
+
+    try {
+      const requestedStroops = parseXlmToStroops(amount);
+      const availableStroops = BigInt(privateXlm?.amount ?? "0");
+      if (
+        privateBalanceStatus === "ready" &&
+        requestedStroops > availableStroops
+      ) {
+        setError(
+          `You have ${privateXlmAmount} private XLM available. Enter ${privateXlmAmount} XLM or less.`,
+        );
+        return;
+      }
+    } catch (amountError) {
+      setError(privateOperationError(amountError));
       return;
     }
 
@@ -250,8 +297,15 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
           <label>
             Asset
             <select value="XLM" disabled>
-              <option value="XLM">XLM on Stellar Testnet</option>
+              <option value="XLM">
+                XLM on Stellar Testnet
+              </option>
             </select>
+            <small>
+              {privateBalanceStatus === "ready"
+                ? `${privateXlmAmount} private XLM available`
+                : "Your private balance will be checked before submission."}
+            </small>
           </label>
           <label>
             {isSend ? "Amount to send" : "Amount to move back"}
