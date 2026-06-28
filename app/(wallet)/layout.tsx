@@ -99,7 +99,6 @@ function WalletTopbar({ onMenu }: { onMenu: () => void }) {
     disconnectWallet,
     refreshBalances,
   } = useWalletConnection();
-  const [privateMode, setPrivateMode] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const copyAddress = async () => {
@@ -121,14 +120,10 @@ function WalletTopbar({ onMenu }: { onMenu: () => void }) {
       </div>
 
       <div className="wallet-topbar-actions">
-        <button
-          className={privateMode ? "private-toggle private-toggle-on" : "private-toggle"}
-          onClick={() => setPrivateMode((value) => !value)}
-          type="button"
-        >
+        <div className="private-toggle private-toggle-on" aria-label="Official SPP Testnet">
           <span className="private-toggle-dot" />
-          <span className="private-toggle-label">Private Mode</span>
-        </button>
+          <span className="private-toggle-label">SPP Testnet</span>
+        </div>
 
         <ThemeControls surface="wallet" />
 

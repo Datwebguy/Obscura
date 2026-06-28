@@ -86,10 +86,10 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-The checked-in defaults use the official SPP Testnet contracts, so copying the
-environment file is optional for local development. Set
-`NEXT_PUBLIC_SPP_BOOTNODE_URL` when operating a compatible SPP indexer or
-bootnode; it improves recovery beyond the public RPC event-retention window.
+The environment file is required and contains public Testnet endpoints and
+contract IDs, not wallet secrets. Set `NEXT_PUBLIC_SPP_BOOTNODE_URL` when
+operating a compatible SPP indexer or bootnode; it improves recovery beyond the
+public RPC event-retention window.
 
 ## Environment Variables
 
@@ -97,8 +97,9 @@ bootnode; it improves recovery beyond the public RPC event-retention window.
 | --- | --- |
 | `NEXT_PUBLIC_STELLAR_HORIZON_URL` | Public Stellar account and balance API |
 | `NEXT_PUBLIC_STELLAR_RPC_URL` | Soroban Testnet RPC endpoint |
+| `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Transaction explorer base URL |
+| `NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE` | Stellar Testnet network passphrase |
 | `NEXT_PUBLIC_SPP_XLM_POOL_ID` | SPP XLM privacy pool |
-| `NEXT_PUBLIC_SPP_VERIFIER_ID` | Groth16 verifier contract |
 | `NEXT_PUBLIC_SPP_ASP_MEMBERSHIP_ID` | SPP membership contract |
 | `NEXT_PUBLIC_SPP_BOOTNODE_URL` | Optional compatible SPP history service |
 
@@ -116,7 +117,7 @@ npm start
 
 1. Import `Datwebguy/Obscura` into Vercel.
 2. Keep the framework preset on **Next.js**.
-3. Add any environment overrides from `.env.example`.
+3. Add every required environment variable from `.env.example`.
 4. Deploy.
 
 No server-held wallet secrets or custom backend are required. The SPP browser

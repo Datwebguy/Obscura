@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { animate, motion, useMotionValue, useReducedMotion } from "framer-motion";
 import {
   ArrowRight,
-  Chrome,
   EyeOff,
   Fingerprint,
   LockKeyhole,
@@ -45,7 +45,7 @@ const showcaseScreens: ShowcaseScreen[] = [
     status: "Official SPP Pool",
     actions: ["Amount", "Approve", "Verify"],
     rows: [
-      ["Enrollment", "Automatic"],
+      ["Pool access", "Policy checked live"],
       ["ZK proof", "Generated in browser"],
       ["Network", "Stellar Testnet"],
     ],
@@ -57,7 +57,7 @@ const showcaseScreens: ShowcaseScreen[] = [
     status: "Payment Details Hidden",
     actions: ["Recipient", "Amount", "Approve"],
     rows: [
-      ["Recipient", "Private address"],
+      ["Recipient", "Registered Stellar address"],
       ["Delivery", "Encrypted note"],
       ["Proof", "Verified on Soroban"],
     ],
@@ -84,7 +84,7 @@ const principles = [
   },
   {
     title: "Privacy",
-    copy: "Shielded transfers hide activity from observers while keeping users in control.",
+    copy: "ZK proofs protect private note amounts and ownership while commitments remain verifiable.",
     icon: EyeOff,
   },
   {
@@ -98,15 +98,6 @@ const fadeUp = {
   hidden: { opacity: 0, y: 18 },
   visible: { opacity: 1, y: 0 },
 };
-
-function DiscordGlyph() {
-  return (
-    <span className="discord-glyph" aria-hidden="true">
-      <span />
-      <span />
-    </span>
-  );
-}
 
 function FrameRails() {
   return (
@@ -303,27 +294,29 @@ export default function LandingPage() {
         <FrameRails />
 
         <header className="stellar-nav">
-          <a className="brand-lockup" href="#" aria-label="Obscura home">
+          <Link className="brand-lockup" href="/" aria-label="Obscura home">
             <span className="brand-chip">
               <ObscuraLogo className="obscura-logo-landing" />
               <strong>OBSCURA</strong>
             </span>
-          </a>
+          </Link>
 
           <div className="nav-right">
             <nav aria-label="Primary navigation">
               <a href="#privacy">Privacy</a>
               <a href="#features">Features</a>
-              <a href="#support">Support</a>
+              <a
+                href="https://github.com/Datwebguy/Obscura/issues"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Support
+              </a>
             </nav>
 
             <ThemeControls />
-            <button className="discord-button" type="button" aria-label="Community">
-              <DiscordGlyph />
-            </button>
-
             <CornerButton href="/wallet">
-              <Chrome size={23} />
+              <ShieldCheck size={23} />
               <span>Launch App</span>
             </CornerButton>
           </div>
@@ -349,8 +342,8 @@ export default function LandingPage() {
           </motion.h1>
 
           <motion.p variants={fadeUp}>
-            Shield your tokens, send privately, and manage Stellar assets without exposing balances
-            or transaction history to the world.
+            Shield XLM, send private payments, and unshield through the official
+            Stellar Private Payments Testnet contracts.
           </motion.p>
 
           <motion.div variants={fadeUp}>
@@ -389,8 +382,8 @@ export default function LandingPage() {
               PRIVATE BY <span>DESIGN</span>
             </h2>
             <small>
-              When you shield your assets, balances and transactions become invisible to outside
-              observers. Obscura keeps private payments simple and user controlled.
+              Payment ownership and amounts are protected with browser-generated
+              proofs while public commitments remain verifiable on Stellar.
             </small>
           </div>
 
@@ -433,7 +426,7 @@ export default function LandingPage() {
             READY TO GO <span>PRIVATE?</span>
           </h2>
           <CornerButton href="/wallet">
-            <Chrome size={20} />
+            <ShieldCheck size={20} />
             <span>Launch App</span>
           </CornerButton>
         </section>
@@ -446,6 +439,13 @@ export default function LandingPage() {
           <nav>
             <a href="#privacy">Privacy</a>
             <a href="#features">Features</a>
+            <a
+              href="https://github.com/Datwebguy/Obscura/issues"
+              rel="noreferrer"
+              target="_blank"
+            >
+              Support
+            </a>
             <a href="/wallet">Launch App</a>
           </nav>
           <span>© 2026 Obscura</span>

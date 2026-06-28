@@ -21,6 +21,7 @@ import {
   parseXlmToStroops,
 } from "./stellar-amount";
 import { useWalletConnection } from "./wallet-context";
+import { testnetTransactionUrl } from "../config";
 
 type ShieldModalProps = {
   isOpen: boolean;
@@ -277,7 +278,7 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
                   Privacy proof verified on Stellar
                 </strong>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${transactionHash}`}
+                  href={testnetTransactionUrl(transactionHash)}
                   rel="noreferrer"
                   target="_blank"
                 >
@@ -331,7 +332,7 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
                 {membershipDetails.enrollmentHash ? (
                   <a
                     className="membership-explorer-link"
-                    href={`https://stellar.expert/explorer/testnet/tx/${membershipDetails.enrollmentHash}`}
+                    href={testnetTransactionUrl(membershipDetails.enrollmentHash)}
                     rel="noreferrer"
                     target="_blank"
                   >

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, LoaderCircle, WalletCards } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useWalletConnection } from "../../wallet-context";
+import { obscuraConfig, testnetTransactionUrl } from "../../../config";
 
 type TransactionRecord = {
   created_at: string;
@@ -37,26 +38,38 @@ export default function ActivityPage() {
     }
 
     const controller = new AbortController();
+    let active = true;
     setIsLoading(true);
     setError(null);
 
     void fetch(
-      `https://horizon-testnet.stellar.org/accounts/${address}/transactions?order=desc&limit=20`,
+      `${obscuraConfig.horizonUrl}/accounts/${encodeURIComponent(address)}/transactions?order=desc&limit=20`,
       { cache: "no-store", signal: controller.signal },
     )
       .then(async (response) => {
         if (!response.ok) throw new Error("Live Testnet activity is unavailable.");
         return (await response.json()) as TransactionResponse;
       })
-      .then((result) => setRecords(result._embedded.records))
+      .then((result) => {
+        if (active) setRecords(result._embedded.records);
+      })
       .catch((requestError) => {
-        if (requestError instanceof Error && requestError.name !== "AbortError") {
+        if (
+          active &&
+          requestError instanceof Error &&
+          requestError.name !== "AbortError"
+        ) {
           setError(requestError.message);
         }
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
 
-    return () => controller.abort();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [address]);
 
   return (
@@ -93,7 +106,7 @@ export default function ActivityPage() {
           {records.map((transaction) => (
             <a
               className="activity-table-row"
-              href={`https://stellar.expert/explorer/testnet/tx/${transaction.hash}`}
+              href={testnetTransactionUrl(transaction.hash)}
               key={transaction.hash}
               rel="noreferrer"
               target="_blank"

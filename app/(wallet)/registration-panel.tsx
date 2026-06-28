@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { SppProgress } from "./spp-client";
 import { useWalletConnection } from "./wallet-context";
+import { testnetTransactionUrl } from "../config";
 
 type RegistrationPanelProps = {
   compact?: boolean;
@@ -202,7 +203,7 @@ export function RegistrationPanel({
       {registrationHash ? (
         <a
           className="registration-explorer-link"
-          href={`https://stellar.expert/explorer/testnet/tx/${registrationHash}`}
+          href={testnetTransactionUrl(registrationHash)}
           rel="noreferrer"
           target="_blank"
         >

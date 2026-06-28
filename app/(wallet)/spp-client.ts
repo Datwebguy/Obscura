@@ -4,18 +4,12 @@ import {
   parseSerializedFieldToBigInt,
   parseXlmToStroops,
 } from "./stellar-amount";
+import { obscuraConfig } from "../config";
 
-export const SPP_RPC_URL =
-  process.env.NEXT_PUBLIC_STELLAR_RPC_URL ??
-  "https://soroban-testnet.stellar.org";
-export const SPP_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
-export const SPP_XLM_POOL_ID =
-  process.env.NEXT_PUBLIC_SPP_XLM_POOL_ID ??
-  "CBUEFW2J5QZ6Q2ARZWQPFWF4T7DRXCZWDTM34WNM375Y56FE4DSL42S2";
-export const SPP_VERIFIER_ID =
-  process.env.NEXT_PUBLIC_SPP_VERIFIER_ID ??
-  "CBKOZTEYI5RAGSUKWAQEC4V6MRYDC4KL2D3PRPKMLWHTMXMFSCBVUJXX";
-const SPP_BOOTNODE_URL = process.env.NEXT_PUBLIC_SPP_BOOTNODE_URL;
+export const SPP_RPC_URL = obscuraConfig.rpcUrl;
+export const SPP_NETWORK_PASSPHRASE = obscuraConfig.networkPassphrase;
+export const SPP_XLM_POOL_ID = obscuraConfig.xlmPoolId;
+const SPP_BOOTNODE_URL = obscuraConfig.bootnodeUrl;
 
 export type SppProgress = {
   flow: string;
@@ -369,9 +363,7 @@ export class SppMembershipRequiredError extends Error {
   }
 }
 
-const SPP_ASP_MEMBERSHIP_ID =
-  process.env.NEXT_PUBLIC_SPP_ASP_MEMBERSHIP_ID ??
-  "CAMMKUKPKTR73DGBD5CLYXWDUYI6DP2EKUREW6O3L65EAZMF6GXJRMPK";
+const SPP_ASP_MEMBERSHIP_ID = obscuraConfig.membershipId;
 
 function membershipEnrollmentKey(address: string, leaf: string) {
   return `obscura:spp-membership:${address}:${leaf}`;

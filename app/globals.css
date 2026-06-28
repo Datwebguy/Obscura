@@ -1205,7 +1205,7 @@ button {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -1384,8 +1384,7 @@ button {
   backdrop-filter: blur(10px);
 }
 
-.shield-modal,
-.feature-status-modal {
+.shield-modal {
   width: min(100%, 560px);
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
@@ -1405,8 +1404,7 @@ button {
   padding: 18px 22px;
 }
 
-.shield-modal-header span,
-.feature-status-modal > span {
+.shield-modal-header span {
   color: var(--primary);
   font-family: "Space Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
@@ -1414,7 +1412,6 @@ button {
 }
 
 .shield-modal-header h2,
-.feature-status-modal h2,
 .shield-success h3,
 .shield-connect-state h3,
 .shield-membership-state h3 {
@@ -1429,8 +1426,7 @@ button {
   font-size: clamp(20px, 4vw, 28px);
 }
 
-.shield-modal-header > button,
-.feature-modal-close {
+.shield-modal-header > button {
   display: grid;
   width: 42px;
   height: 42px;
@@ -1673,7 +1669,6 @@ button {
 .shield-submit,
 .shield-connect-state button,
 .shield-success > button,
-.feature-status-modal > button:not(.feature-modal-close),
 .activity-empty button {
   display: inline-flex;
   min-height: 54px;
@@ -1825,8 +1820,7 @@ button {
 }
 
 .shield-connect-state p,
-.shield-success p,
-.feature-status-modal p {
+.shield-success p {
   max-width: 420px;
   color: #bca99e;
   line-height: 1.65;
@@ -1907,26 +1901,6 @@ button {
   color: var(--muted);
   font-family: Inter, Arial, sans-serif;
   font-weight: 500;
-}
-
-.feature-status-modal {
-  position: relative;
-  padding: 34px;
-}
-
-.feature-status-modal h2 {
-  margin-top: 12px;
-  font-size: clamp(28px, 6vw, 44px);
-}
-
-.feature-modal-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-}
-
-.feature-status-modal > button:not(.feature-modal-close) {
-  margin-top: 12px;
 }
 
 .activity-empty {
@@ -2102,8 +2076,7 @@ button {
     padding: 0;
   }
 
-  .shield-modal,
-  .feature-status-modal {
+  .shield-modal {
     max-height: 94vh;
     overflow-y: auto;
     border-right: 0;
@@ -2111,8 +2084,7 @@ button {
     border-left: 0;
   }
 
-  .shield-modal-form,
-  .feature-status-modal {
+  .shield-modal-form {
     padding: 20px;
   }
 
@@ -2279,8 +2251,7 @@ button {
         }
 
         .icon-box,
-        .icon-button,
-        .discord-button {
+        .icon-button {
           display: grid;
           place-items: center;
           border: 0;
@@ -2297,43 +2268,10 @@ button {
           color: #ff5c32;
         }
 
-        .icon-button,
-        .discord-button {
+        .icon-button {
           width: 32px;
           height: 32px;
           color: #9a918a;
-        }
-
-        .discord-button {
-          color: #050505;
-        }
-
-        .discord-glyph {
-          position: relative;
-          display: block;
-          width: 24px;
-          height: 17px;
-          border-radius: 9px 9px 6px 6px;
-          background: currentColor;
-        }
-
-        .discord-glyph::before,
-        .discord-glyph::after {
-          position: absolute;
-          top: 7px;
-          width: 3px;
-          height: 3px;
-          border-radius: 50%;
-          background: #f4f1ed;
-          content: "";
-        }
-
-        .discord-glyph::before {
-          left: 7px;
-        }
-
-        .discord-glyph::after {
-          right: 7px;
         }
 
         .corner-button {
@@ -2886,7 +2824,6 @@ button {
           .stellar-nav nav,
           .icon-box,
           .icon-button,
-          .discord-button,
           .nav-right > .corner-button {
             display: none;
           }
@@ -3109,14 +3046,8 @@ html[data-theme="dark"] .privacy-badge {
   border-color: #6d574d;
 }
 
-html[data-theme="dark"] .icon-button,
-html[data-theme="dark"] .discord-button {
+html[data-theme="dark"] .icon-button {
   color: #d2c4bb;
-}
-
-html[data-theme="dark"] .discord-glyph::before,
-html[data-theme="dark"] .discord-glyph::after {
-  background: #17100d;
 }
 
 html[data-theme="dark"] .preview-band,
@@ -3963,11 +3894,6 @@ html[data-theme="dark"] .registration-error {
     grid-template-columns: 1fr;
   }
 
-  .feature-status-modal {
-    width: 100%;
-    max-height: 100dvh;
-    padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
-  }
 }
 
 @media (max-width: 420px) {

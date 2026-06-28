@@ -22,10 +22,9 @@ import {
   SppWalletBridge,
   withdrawFromSppPool,
 } from "./spp-client";
+import { obscuraConfig } from "../config";
 
-const HORIZON_URL =
-  process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL ??
-  "https://horizon-testnet.stellar.org";
+const HORIZON_URL = obscuraConfig.horizonUrl;
 const NETWORK_NAME = "Testnet";
 const VERIFIED_PROOF_STORAGE_KEY = "obscura:last-verified-proof";
 const LEGACY_VERIFIED_PROOF_STORAGE_KEY =
@@ -217,6 +216,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [lastVerifiedProof, setLastVerifiedProof] =
     useState<VerifiedProof | null>(null);
   const addressRef = useRef<string | null>(null);
+  const balanceRequestIdRef = useRef(0);
 
   useEffect(() => {
     try {
@@ -237,6 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [address]);
 
   const loadBalances = useCallback(async (publicKey: string) => {
+    const requestId = ++balanceRequestIdRef.current;
     setIsBalanceLoading(true);
     setBalanceError(null);
 
@@ -266,12 +267,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           return left.assetCode.localeCompare(right.assetCode);
         });
 
-      setBalances(nextBalances);
+      if (requestId === balanceRequestIdRef.current) {
+        setBalances(nextBalances);
+      }
     } catch (requestError) {
-      setBalances([]);
-      setBalanceError(getErrorMessage(requestError));
+      if (requestId === balanceRequestIdRef.current) {
+        setBalances([]);
+        setBalanceError(getErrorMessage(requestError));
+      }
     } finally {
-      setIsBalanceLoading(false);
+      if (requestId === balanceRequestIdRef.current) {
+        setIsBalanceLoading(false);
+      }
     }
   }, []);
 
@@ -293,6 +300,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           Kit.on(eventTypes.STATE_UPDATED, (event) => {
             if (!active) return;
             const nextAddress = event.payload.address ?? null;
+            addressRef.current = nextAddress;
             setAddress(nextAddress);
             setError(null);
             if (nextAddress) {
@@ -307,6 +315,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }),
           Kit.on(eventTypes.DISCONNECT, () => {
             if (!active) return;
+            addressRef.current = null;
+            balanceRequestIdRef.current += 1;
             setAddress(null);
             setBalances([]);
             setBalanceError(null);
@@ -319,6 +329,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         void Kit.getAddress()
           .then(({ address: storedAddress }) => {
             if (!active) return;
+            addressRef.current = storedAddress;
             setAddress(storedAddress);
             void loadBalances(storedAddress);
           })
@@ -346,6 +357,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           : themes.SwkAppLightTheme,
       );
       const result = await Kit.authModal();
+      addressRef.current = result.address;
       setAddress(result.address);
       await loadBalances(result.address);
     } catch (connectionError) {
@@ -363,6 +375,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const { Kit } = await getWalletRuntime();
       await Kit.disconnect();
     } finally {
+      addressRef.current = null;
+      balanceRequestIdRef.current += 1;
       setAddress(null);
       setBalances([]);
       setBalanceError(null);

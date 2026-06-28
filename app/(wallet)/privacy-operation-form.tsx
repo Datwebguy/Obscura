@@ -15,6 +15,7 @@ import { FormEvent, useState } from "react";
 import { SppProgress } from "./spp-client";
 import { RegistrationPanel } from "./registration-panel";
 import { useWalletConnection } from "./wallet-context";
+import { testnetTransactionUrl } from "../config";
 
 type PrivacyOperationFormProps = {
   mode: "send" | "unshield";
@@ -146,7 +147,7 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
             Privacy proof verified on Stellar
           </strong>
           <a
-            href={`https://stellar.expert/explorer/testnet/tx/${hash}`}
+            href={testnetTransactionUrl(hash)}
             rel="noreferrer"
             target="_blank"
           >

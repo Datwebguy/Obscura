@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  ArrowRightLeft,
   BadgeCheck,
-  BookUser,
   EyeOff,
   History,
   LoaderCircle,
@@ -15,13 +13,13 @@ import {
   Shield,
   UnlockKeyhole,
   WalletCards,
-  X,
 } from "lucide-react";
 import { useState } from "react";
 import { RegistrationPanel } from "../registration-panel";
 import { ShieldModal } from "../shield-modal";
 import { formatStroopsAsXlm } from "../stellar-amount";
 import { useWalletConnection } from "../wallet-context";
+import { testnetTransactionUrl } from "../../config";
 
 const actionCards = [
   {
@@ -45,20 +43,8 @@ const actionCards = [
   {
     href: "/wallet/activity",
     title: "Transactions",
-    copy: "Review your recent wallet and privacy activity.",
+    copy: "Review your recent Stellar Testnet transactions.",
     icon: History,
-  },
-  {
-    action: "Swap",
-    title: "Swap",
-    copy: "Private asset swaps are coming soon.",
-    icon: ArrowRightLeft,
-  },
-  {
-    action: "Contacts",
-    title: "Contacts",
-    copy: "Save people you pay often. Coming soon.",
-    icon: BookUser,
   },
 ];
 
@@ -83,7 +69,6 @@ export default function WalletDashboardPage() {
     unlockPrivateBalance,
   } = useWalletConnection();
   const [shieldOpen, setShieldOpen] = useState(false);
-  const [upcomingFeature, setUpcomingFeature] = useState<string | null>(null);
 
   const privateXlm = privateBalances.find(
     (balance) => balance.tokenLabel === "XLM",
@@ -123,13 +108,13 @@ export default function WalletDashboardPage() {
       >
         <div className="private-banner">
           <LockKeyhole size={18} />
-          <span>{isConnected ? "Private Balance" : "Privacy Mode Ready"}</span>
+          <span>{isConnected ? "Private Balance" : "SPP Testnet Ready"}</span>
         </div>
 
         {lastVerifiedProof ? (
           <a
             className="verified-proof-badge"
-            href={`https://stellar.expert/explorer/testnet/tx/${lastVerifiedProof.hash}`}
+            href={testnetTransactionUrl(lastVerifiedProof.hash)}
             rel="noreferrer"
             target="_blank"
           >
@@ -139,7 +124,7 @@ export default function WalletDashboardPage() {
         ) : (
           <div className="verified-proof-badge verified-proof-ready">
             <Shield size={17} />
-            Privacy Protection Ready
+            Official SPP Contracts
           </div>
         )}
 
@@ -247,11 +232,7 @@ export default function WalletDashboardPage() {
             ) : (
               <button
                 className="action-card"
-                onClick={() =>
-                  action === "shield"
-                    ? setShieldOpen(true)
-                    : setUpcomingFeature(action ?? title)
-                }
+                onClick={() => action === "shield" && setShieldOpen(true)}
                 type="button"
               >
                 <span>
@@ -268,47 +249,6 @@ export default function WalletDashboardPage() {
       </section>
 
       <ShieldModal isOpen={shieldOpen} onClose={() => setShieldOpen(false)} />
-
-      <AnimatePresence>
-        {upcomingFeature ? (
-          <motion.div
-            className="shield-modal-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onMouseDown={(event) => {
-              if (event.currentTarget === event.target) setUpcomingFeature(null);
-            }}
-          >
-            <motion.section
-              aria-modal="true"
-              className="feature-status-modal"
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 14, scale: 0.98 }}
-              role="dialog"
-            >
-              <button
-                aria-label="Close dialog"
-                className="feature-modal-close"
-                onClick={() => setUpcomingFeature(null)}
-                type="button"
-              >
-                <X size={19} />
-              </button>
-              <span>// COMING SOON</span>
-              <h2>{upcomingFeature}</h2>
-              <p>
-                We are still preparing this feature. Shield, Private Send, and
-                Unshield are ready to use now.
-              </p>
-              <button onClick={() => setUpcomingFeature(null)} type="button">
-                Return to Dashboard
-              </button>
-            </motion.section>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
     </div>
   );
 }
