@@ -35,6 +35,24 @@ const stageNames: Record<string, string> = {
   sync_wait: "Finishing a network update",
 };
 
+function privateOperationError(error: unknown) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "The private payment could not be completed.";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("transaction simulation failed") ||
+    normalized.includes("hosterror") ||
+    normalized.includes("event log") ||
+    normalized.includes("diagnostic")
+  ) {
+    return "Stellar rejected this request before wallet approval. No funds were moved. Check the amount and destination, then try again.";
+  }
+  return message;
+}
+
 export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
   const {
     address,
@@ -85,11 +103,7 @@ export function PrivacyOperationForm({ mode }: PrivacyOperationFormProps) {
         message: "Privacy proof verified on Stellar",
       });
     } catch (operationError) {
-      setError(
-        operationError instanceof Error
-          ? operationError.message
-          : "The private payment could not be completed.",
-      );
+      setError(privateOperationError(operationError));
     } finally {
       setIsWorking(false);
     }

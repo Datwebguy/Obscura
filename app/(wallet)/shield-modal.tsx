@@ -12,11 +12,14 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  getSppMaximumDepositStroops,
+  SppDepositLimitError,
   SppMembershipRequiredError,
   SppProgress,
 } from "./spp-client";
 import {
   formatStroops,
+  formatStroopsAsXlm,
   parseXlmBalanceToStroops,
   parseXlmToStroops,
 } from "./stellar-amount";
@@ -35,6 +38,10 @@ function formatAssetBalance(value: string) {
 }
 
 function getShieldErrorMessage(error: unknown) {
+  if (error instanceof SppDepositLimitError) {
+    return `The official SPP pool allows up to ${formatStroopsAsXlm(error.maximumStroops)} XLM per Shield. Enter a smaller amount.`;
+  }
+
   const message =
     error instanceof Error
       ? error.message
@@ -59,6 +66,14 @@ function getShieldErrorMessage(error: unknown) {
     normalized.includes("contract, #1")
   ) {
     return "The official SPP pool changed to restricted access before setup finished. No funds were moved. Try again to refresh the pool policy.";
+  }
+  if (
+    normalized.includes("transaction simulation failed") ||
+    normalized.includes("hosterror") ||
+    normalized.includes("event log") ||
+    normalized.includes("diagnostic")
+  ) {
+    return "Stellar rejected this Shield request before wallet approval. No funds were moved. Check the amount and try again.";
   }
   return message;
 }
@@ -107,6 +122,8 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
     useState<SppMembershipRequiredError | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [maximumDepositStroops, setMaximumDepositStroops] =
+    useState<bigint | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const xlm = useMemo(
@@ -126,6 +143,26 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
       return null;
     }
   }, [amount]);
+
+  useEffect(() => {
+    if (!isOpen || !isConnected) {
+      setMaximumDepositStroops(null);
+      return;
+    }
+
+    let active = true;
+    void getSppMaximumDepositStroops()
+      .then((limit) => {
+        if (active) setMaximumDepositStroops(limit);
+      })
+      .catch(() => {
+        if (active) setMaximumDepositStroops(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isConnected, isOpen]);
 
   useEffect(() => {
     if (!isBusy) {
@@ -195,6 +232,15 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
         setError("Your current XLM balance could not be read. Refresh it and try again.");
         return;
       }
+    }
+    if (
+      maximumDepositStroops !== null &&
+      requestedStroops > maximumDepositStroops
+    ) {
+      setError(
+        `The official SPP pool allows up to ${formatStroopsAsXlm(maximumDepositStroops)} XLM per Shield. Enter a smaller amount.`,
+      );
+      return;
     }
     if (!acceptedRisk) {
       setError("Please confirm the Testnet notice to continue.");
@@ -430,7 +476,11 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
                     <input
                       autoFocus
                       inputMode="decimal"
-                      max={xlm?.balance}
+                      max={
+                        maximumDepositStroops === null
+                          ? xlm?.balance
+                          : formatStroopsAsXlm(maximumDepositStroops)
+                      }
                       min="0"
                       onChange={(event) => setAmount(event.target.value)}
                       placeholder="0.00"
@@ -442,6 +492,9 @@ export function ShieldModal({ isOpen, onClose }: ShieldModalProps) {
                   {amountInStroops ? (
                     <small>
                       {amount} XLM equals {formatStroops(amountInStroops)} stroops.
+                      {maximumDepositStroops !== null
+                        ? ` Maximum per Shield: ${formatStroopsAsXlm(maximumDepositStroops)} XLM.`
+                        : ""}
                     </small>
                   ) : (
                     <small>Use up to 7 decimal places. The minimum is 0.0000001 XLM.</small>

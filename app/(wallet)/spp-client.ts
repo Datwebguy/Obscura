@@ -363,7 +363,43 @@ export class SppMembershipRequiredError extends Error {
   }
 }
 
+export class SppDepositLimitError extends Error {
+  readonly maximumStroops: bigint;
+
+  constructor(maximumStroops: bigint) {
+    super("The requested deposit exceeds the official SPP pool limit.");
+    this.name = "SppDepositLimitError";
+    this.maximumStroops = maximumStroops;
+  }
+}
+
 const SPP_ASP_MEMBERSHIP_ID = obscuraConfig.membershipId;
+
+export async function getSppMaximumDepositStroops() {
+  const StellarSdk = await import("@stellar/stellar-sdk");
+  const server = new StellarSdk.rpc.Server(SPP_RPC_URL);
+  const storageKey = StellarSdk.xdr.ScVal.scvVec([
+    StellarSdk.xdr.ScVal.scvSymbol("MaximumDepositAmount"),
+  ]);
+  const ledgerEntry = await server.getContractData(
+    SPP_XLM_POOL_ID,
+    storageKey,
+    StellarSdk.rpc.Durability.Persistent,
+  );
+  const value = ledgerEntry.val.contractData().val();
+
+  if (value.switch().name !== "scvU256") {
+    throw new Error("The SPP pool returned an invalid deposit limit.");
+  }
+
+  const limit = value.u256();
+  return (
+    (BigInt(limit.hiHi().toString()) << BigInt(192)) |
+    (BigInt(limit.hiLo().toString()) << BigInt(128)) |
+    (BigInt(limit.loHi().toString()) << BigInt(64)) |
+    BigInt(limit.loLo().toString())
+  );
+}
 
 function membershipEnrollmentKey(address: string, leaf: string) {
   return `obscura:spp-membership:${address}:${leaf}`;
@@ -530,6 +566,10 @@ export async function getSppPrivatePortfolio(
 
 export async function depositToSppPool(input: SppOperationInput) {
   const amount = parseXlmToStroops(input.amount);
+  const maximumDeposit = await getSppMaximumDepositStroops().catch(() => null);
+  if (maximumDeposit !== null && amount > maximumDeposit) {
+    throw new SppDepositLimitError(maximumDeposit);
+  }
   const client = await loadSppClient(input.bridge);
   await acceptCurrentDisclaimer(client, input.address, input.onProgress);
   const identity = await ensurePrivacyIdentity(

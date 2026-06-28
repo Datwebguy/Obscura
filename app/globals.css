@@ -1524,6 +1524,9 @@ button {
 
 .shield-intent-note p,
 .shield-form-error {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   margin: 0;
   font-size: 12px;
   line-height: 1.6;
